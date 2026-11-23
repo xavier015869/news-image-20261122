@@ -1,7 +1,32 @@
-// THE SUNDAY GLOBE — front page for Sunday 22 November 2026.
+// THE SUNDAY GLOBE — front page for Sunday 22 November 2026. (v2)
 // Node 22+ standard library only. Renders one 1024x1024 newspaper front
 // page as a PNG and writes it to /output/entry.png (or $MAKEFUN_OUTPUT_DIR).
 // Fully deterministic: no network, no randomness, no clock reads.
+//
+// V2 NEWS JUDGEMENT — every story verified against two sources that date
+// it to Sunday 22 November 2026 (the day it happened or was first
+// reported, in some time zone):
+//  LEAD  COP31 climate summit ends in Antalya with no deal, two days into
+//        overtime, fossil-fuel row (Open Chronicle 22 Nov brief; Russell
+//        Record 22 Nov headlines; Standard Topic 22 Nov archive).
+//  WAR   Ukrainian sea drones strike the Russian warship Merkury at
+//        Benghazi, Libya (Open Chronicle; Standard Topic, 22 Nov).
+//  GULF  Two tankers struck near Hormuz; Bahrain reports an Iranian strike
+//        on a Sitra industrial site, two hurt (Russell Record; Open
+//        Chronicle; AP wire roundup, 22 Nov).
+//  BRIEFS: Russian missiles hit Poland, NATO protests (AP; Lama 24h
+//        recap, 22 Nov) • Russian strikes kill five in Ukraine (AP) •
+//        Mexico holds cartel boss 'Chapo Isidro', 11 dead (AP; Lama) •
+//        Seoul education minister Choi Kyo-jin quits over AI exam-cheating
+//        chaos (Reuters; AJP, 22 Nov) • UK and EU sign trade/travel deals
+//        (AP; Open Chronicle) • Peru quake toll from COEN's Sunday count:
+//        1 dead, 850 displaced (RPP via COEN, 22 Nov) • Geneva states
+//        pledge killer-robot rules (Lama; UN talks reporting) • Rohingya
+//        in Bangladesh hail Thursday's ICJ genocide verdict and ask to go
+//        home (AP, 22 Nov).
+//  V1's lead (the ICJ verdict itself) was dropped as the lead: the ruling
+//  was handed down on Thursday 19 November (Le Monde, HRW, CNN, WSJ), so
+//  presenting it as Sunday's news was wrong; only Sunday's reaction runs.
 
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -53,13 +78,16 @@ const PAPER: RGB = [247, 243, 232];
 const INK: RGB = [18, 18, 18];
 const RED: RGB = [178, 32, 44];
 const BLUE: RGB = [28, 58, 96];
+const OCEAN: RGB = [62, 110, 158];
 const GREY: RGB = [112, 108, 98];
 const LGREY: RGB = [226, 220, 205];
-const CREAM: RGB = [232, 224, 200];
 const GOLD: RGB = [196, 148, 52];
 const TEAL: RGB = [32, 96, 96];
 const SKY: RGB = [214, 228, 236];
 const DARK: RGB = [40, 44, 52];
+const GREEN: RGB = [84, 122, 66];
+const SAND: RGB = [208, 182, 124];
+const SHIP: RGB = [96, 104, 116];
 
 // ---------------------------------------------------------------- canvas
 class Canvas {
@@ -104,6 +132,15 @@ class Canvas {
   }
   ring(cx: number, cy: number, r: number, c: RGB, t = 2): void {
     for (let a = 0; a < 360; a += 1) {
+      const rad = (a * Math.PI) / 180;
+      for (let k = 0; k < t; k++) {
+        this.px(Math.round(cx + (r + k) * Math.cos(rad)), Math.round(cy + (r + k) * Math.sin(rad)), c);
+      }
+    }
+  }
+  // thick arc from angle a0 to a1 (degrees, 0 = east, going clockwise)
+  arc(cx: number, cy: number, r: number, a0: number, a1: number, c: RGB, t = 3): void {
+    for (let a = a0; a <= a1; a += 0.7) {
       const rad = (a * Math.PI) / 180;
       for (let k = 0; k < t; k++) {
         this.px(Math.round(cx + (r + k) * Math.cos(rad)), Math.round(cy + (r + k) * Math.sin(rad)), c);
@@ -199,13 +236,13 @@ const FONT: Record<string, number[]> = {
   '0': [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
   '1': [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
   '2': [0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111],
-  '3': [0b11111, 0b00010, 0b00100, 0b00010, 0b00001, 0b10001, 0b01110],
+  '3': [0b11111, 0b00010, 0b00100, 0b00110, 0b00001, 0b10001, 0b01110],
   '4': [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
   '5': [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
   '6': [0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
   '7': [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
   '8': [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
-  '9': [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100],
+  '9': [0b01110, 0b10001, 0b10001, 0b10111, 0b00001, 0b00010, 0b01100],
   ' ': [0, 0, 0, 0, 0, 0, 0],
   '.': [0, 0, 0, 0, 0, 0b01100, 0b01100],
   ',': [0, 0, 0, 0, 0b01100, 0b00100, 0b01000],
@@ -225,7 +262,7 @@ const FONT: Record<string, number[]> = {
   '$': [0b00100, 0b01111, 0b10100, 0b01110, 0b00101, 0b11110, 0b00100],
   '+': [0, 0b00100, 0b00100, 0b01110, 0b00100, 0b00100, 0],
   '=': [0, 0, 0b11111, 0, 0b11111, 0, 0],
-  '*': [0, 0b00100, 0b10101, 0b01110, 0b10101, 0b00100, 0],
+  '*': [0, 0b10101, 0b01110, 0b10101, 0b00100, 0, 0],
   '#': [0b01010, 0b01010, 0b11111, 0b01010, 0b11111, 0b01010, 0b01010],
   '•': [0, 0, 0b01100, 0b01100, 0, 0, 0],
   '°': [0b01100, 0b10010, 0b10010, 0b01100, 0, 0, 0],
@@ -242,181 +279,142 @@ function frame(c: Canvas, x: number, y: number, w: number, h: number): void {
   c.rect(x + 2, y + 2, w - 4, h - 4, PAPER);
 }
 
-// Lead art: the scales of justice before a courthouse pediment — the
-// International Court of Justice genocide verdict against Myanmar.
-function drawCourt(c: Canvas, x: number, y: number, w: number, h: number): void {
-  frame(c, x, y, w, h);
-  const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
-  c.rect(ix, iy, iw, ih, SKY);
-  // sun glow
-  c.circle(ix + iw - 46, iy + 34, 22, GOLD);
-  c.circle(ix + iw - 46, iy + 34, 15, [232, 190, 90]);
-  // courthouse: pediment + columns + steps
-  const base = iy + ih - 26;
-  c.poly([[ix + 30, iy + 52], [ix + iw - 30, iy + 52], [ix + iw / 2, iy + 16]], BLUE);
-  c.circle(ix + iw / 2, iy + 38, 7, PAPER);
-  c.rect(ix + 34, iy + 52, iw - 68, 5, BLUE);
-  const colW = 12, gap = (iw - 68 - 5 * colW) / 4;
-  for (let i = 0; i < 5; i++) {
-    const cx0 = ix + 34 + i * (colW + gap);
-    c.rect(cx0, iy + 57, colW, base - iy - 57, PAPER);
-    c.rect(cx0 - 2, iy + 57, colW + 4, 4, PAPER);
-    c.rect(cx0 - 2, base - 5, colW + 4, 5, PAPER);
-  }
-  c.rect(ix + 24, base, iw - 48, 5, BLUE);
-  c.rect(ix + 16, base + 5, iw - 32, 5, [200, 192, 172]);
-  c.rect(ix + 8, base + 10, iw - 16, 6, [178, 170, 150]);
-  // scales of justice, centred in front of the columns
-  const scx = ix + iw / 2, scy = iy + 66;
-  c.rect(scx - 2, scy, 4, 52, GOLD);
-  c.rect(scx - 34, scy + 2, 68, 4, GOLD);
-  c.circle(scx, scy - 4, 6, GOLD);
-  c.line(scx - 32, scy + 6, scx - 46, scy + 30, GOLD, 2);
-  c.line(scx - 32, scy + 6, scx - 18, scy + 30, GOLD, 2);
-  c.line(scx + 32, scy + 6, scx + 46, scy + 30, GOLD, 2);
-  c.line(scx + 32, scy + 6, scx + 18, scy + 30, GOLD, 2);
-  c.poly([[scx - 50, scy + 30], [scx - 14, scy + 30], [scx - 32, scy + 44]], GOLD);
-  c.poly([[scx + 14, scy + 30], [scx + 50, scy + 30], [scx + 32, scy + 44]], GOLD);
-  // caption strip
-  c.rect(ix, iy + ih - 20, iw, 20, INK);
-  c.text(ix + 10, iy + ih - 15, 'THE HAGUE: THE COURT RULES', 2, PAPER);
+function caption(c: Canvas, x: number, y: number, w: number, h: number, s: string): void {
+  const ix = x + 3, iy = y + 3, iw = w - 6;
+  c.rect(ix, iy + h - 6 - 20, iw, 20, INK);
+  c.text(ix + 10, iy + h - 6 - 15, s, 2, PAPER);
 }
 
-// Poland story art: night sky, missile arc and burst over a map pin.
-function drawMissile(c: Canvas, x: number, y: number, w: number, h: number): void {
+// Lead art: the Earth under a cracked glass dome, a thermometer hard
+// against the red — the COP31 talks in Antalya end with no deal.
+function drawClimate(c: Canvas, x: number, y: number, w: number, h: number): void {
   frame(c, x, y, w, h);
   const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
-  c.rect(ix, iy, iw, ih, DARK);
-  for (const [sx, sy] of [[18, 16], [52, 30], [96, 12], [140, 26], [170, 14], [34, 48], [120, 44]] as [number, number][]) {
-    c.circle(ix + sx, iy + sy, 1, PAPER);
+  // sky bands and ground
+  c.rect(ix, iy, iw, ih, SKY);
+  c.rect(ix, iy + ih - 34, iw, 34, SAND);
+  c.rect(ix, iy + ih - 34, iw, 3, [188, 162, 104]);
+  // the globe, whole and clear of the ground
+  const gx = ix + 168, gy = iy + 76, gr = 52;
+  c.circle(gx, gy, gr, OCEAN);
+  c.poly([[gx - 38, gy - 28], [gx - 15, gy - 37], [gx - 6, gy - 21], [gx - 19, gy - 9], [gx - 36, gy - 13]], GREEN);
+  c.poly([[gx + 2, gy - 33], [gx + 29, gy - 30], [gx + 37, gy - 14], [gx + 17, gy - 9], [gx + 3, gy - 18]], GREEN);
+  c.poly([[gx + 5, gy - 3], [gx + 22, gy - 1], [gx + 15, gy + 19], [gx + 3, gy + 12]], SAND);
+  c.poly([[gx - 29, gy + 10], [gx - 12, gy + 7], [gx - 15, gy + 26], [gx - 29, gy + 22]], GREEN);
+  // the glass dome over the globe: a bell jar on the sand, and its crack
+  const jr = gr + 15;
+  c.arc(gx, gy + 12, jr, 180, 360, BLUE, 4);
+  c.vline(gx - jr, gy + 12, 52, BLUE, 4);
+  c.vline(gx + jr, gy + 12, 52, BLUE, 4);
+  c.hline(gx - jr - 6, gy + 64, 2 * jr + 12, BLUE, 4);
+  const crack: [number, number][] = [
+    [gx - 4, gy + 12 - jr], [gx + 4, gy - 34], [gx - 6, gy - 18],
+    [gx + 7, gy - 4],
+  ];
+  for (let i = 0; i + 1 < crack.length; i++) c.line(crack[i][0], crack[i][1], crack[i + 1][0], crack[i + 1][1], RED, 3);
+  c.line(gx + 4, gy - 34, gx + 22, gy - 26, RED, 2);
+  c.line(gx - 6, gy - 18, gx - 22, gy - 11, RED, 2);
+  // thermometer, hard against the red
+  const tx = ix + iw - 92, tTop = iy + 18, tBot = iy + ih - 52;
+  c.rect(tx, tTop, 16, tBot - tTop, PAPER);
+  c.rect(tx, tTop, 16, 3, INK); c.rect(tx, tBot - 3, 16, 3, INK);
+  c.rect(tx, tTop, 3, tBot - tTop, INK); c.rect(tx + 13, tTop, 3, tBot - tTop, INK);
+  c.rect(tx + 5, tTop + 12, 6, tBot - tTop - 12, RED);
+  c.circle(tx + 8, tBot + 8, 13, RED);
+  c.circle(tx + 8, tBot + 8, 8, [214, 74, 60]);
+  for (let k = 0; k < 5; k++) c.rect(tx + 20, tTop + 10 + k * 18, 10, 3, INK);
+  caption(c, x, y, w, h, 'ANTALYA: TWO DAYS OF OVERTIME, NO DEAL');
+}
+
+// Benghazi art: a naval drone over a Russian warship in a Libyan port.
+function drawDrones(c: Canvas, x: number, y: number, w: number, h: number): void {
+  frame(c, x, y, w, h);
+  const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
+  c.rect(ix, iy, iw, ih - 46, SKY);
+  c.rect(ix, iy + ih - 46, iw, 46, TEAL);
+  c.rect(ix, iy + ih - 46, iw, 3, [64, 140, 140]);
+  // port crane, right
+  const kx = ix + iw - 74;
+  c.rect(kx, iy + 10, 8, ih - 56, DARK);
+  c.rect(kx - 52, iy + 10, 60, 7, DARK);
+  c.line(kx - 44, iy + 17, kx - 44, iy + 27, DARK, 2);
+  c.rect(kx - 49, iy + 27, 10, 7, DARK);
+  // warship on the waterline
+  const wy = iy + ih - 52;
+  c.poly([[ix + 40, wy], [ix + 216, wy], [ix + 198, wy + 16], [ix + 58, wy + 16]], SHIP);
+  c.rect(ix + 84, wy - 14, 62, 14, SHIP);
+  c.rect(ix + 100, wy - 24, 30, 10, SHIP);
+  c.rect(ix + 152, wy - 10, 20, 10, SHIP);
+  c.line(ix + 190, wy - 20, ix + 190, wy, DARK, 2);
+  // the drone: quadcopter body, four rotors, red eye
+  const dx = ix + 268, dy = iy + 22;
+  c.rect(dx - 16, dy - 5, 32, 10, DARK);
+  for (const [ox, oy] of [[-26, -12], [26, -12], [-26, 12], [26, 12]] as [number, number][]) {
+    c.line(dx, dy, dx + ox, dy + oy, DARK, 2);
+    c.hline(dx + ox - 9, dy + oy, 18, DARK, 2);
   }
-  // ground line and map pin
-  c.rect(ix, iy + ih - 26, iw, 2, [90, 96, 108]);
-  c.circle(ix + iw / 2, iy + ih - 44, 9, RED);
-  c.poly([[ix + iw / 2 - 9, iy + ih - 44], [ix + iw / 2 + 9, iy + ih - 44], [ix + iw / 2, iy + ih - 26]], RED);
-  c.circle(ix + iw / 2, iy + ih - 44, 3, PAPER);
-  // missile arc from top-left to the pin
-  c.line(ix + 8, iy + 8, ix + 60, iy + 30, GOLD, 3);
-  c.line(ix + 60, iy + 30, ix + iw / 2 - 14, iy + ih - 52, GOLD, 3);
-  // explosion burst
-  const bx = ix + iw / 2, by = iy + ih - 58;
+  c.circle(dx, dy + 8, 4, RED);
+  // its falling line to the ship, and the burst on the deck
+  const bx = ix + 150, by = wy - 8;
+  for (let s = 0; s <= 9; s++) {
+    if (s % 2 === 1) continue;
+    const fx = Math.round((dx - 12) + ((bx + 4) - (dx - 12)) * (s / 9));
+    const fy = Math.round((dy + 14) + ((by - 18) - (dy + 14)) * (s / 9));
+    c.rect(fx, fy, 3, 3, RED);
+  }
   for (let a = 0; a < 8; a++) {
     const r = (a * Math.PI) / 4;
-    c.line(bx, by, Math.round(bx + 26 * Math.cos(r)), Math.round(by + 26 * Math.sin(r)), GOLD, 3);
+    c.line(bx, by, Math.round(bx + 17 * Math.cos(r)), Math.round(by + 17 * Math.sin(r)), GOLD, 3);
   }
-  c.circle(bx, by, 12, GOLD);
-  c.circle(bx, by, 6, RED);
-  c.rect(ix, iy + ih - 20, iw, 20, INK);
-  c.text(ix + 8, iy + ih - 15, 'A MISSILE LANDS IN POLAND', 2, PAPER);
-}
-
-// Gulf story art: tanker on a teal sea under missile trails.
-function drawGulf(c: Canvas, x: number, y: number, w: number, h: number): void {
-  frame(c, x, y, w, h);
-  const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
-  c.rect(ix, iy, iw, ih - 40, [244, 214, 150]);
-  c.circle(ix + 26, iy + 22, 16, GOLD);
-  c.rect(ix, iy + ih - 40, iw, 40, TEAL);
-  c.rect(ix, iy + ih - 40, iw, 3, [64, 140, 140]);
-  // tanker silhouette
-  const ty = iy + ih - 66;
-  c.rect(ix + 26, ty, 128, 26, DARK);
-  c.rect(ix + 40, ty - 16, 26, 16, DARK);
-  c.rect(ix + 74, ty - 10, 8, 10, DARK);
-  c.rect(ix + 120, ty - 22, 6, 22, DARK);
-  c.line(ix + 154, ty - 22, ix + 154, ty - 34, RED, 2);
-  c.circle(ix + 154, ty - 36, 4, RED);
-  // missile trails in the sky
-  c.line(ix + 120, iy + 8, ix + 150, iy + 44, RED, 2);
-  c.line(ix + 160, iy + 6, ix + 178, iy + 36, RED, 2);
-  c.circle(ix + 150, iy + 46, 3, RED);
-  c.circle(ix + 178, iy + 38, 3, RED);
+  c.circle(bx, by, 8, GOLD);
+  c.circle(bx, by, 4, RED);
   // waves
-  for (let wx = ix + 6; wx < ix + iw - 10; wx += 18) {
-    c.line(wx, iy + ih - 22, wx + 9, iy + ih - 16, [120, 190, 190], 2);
+  for (let wx = ix + 8; wx < ix + iw - 12; wx += 22) {
+    c.line(wx, iy + ih - 34, wx + 10, iy + ih - 29, [120, 190, 190], 2);
   }
-  c.rect(ix, iy + ih - 20, iw, 20, INK);
-  c.text(ix + 8, iy + ih - 15, 'STRIKES ACROSS THE GULF', 2, PAPER);
+  caption(c, x, y, w, h, 'BENGHAZI: THE MERKURY IS STRUCK');
 }
 
-// Peru quake art: Andes peaks with a seismograph trace.
-function drawQuake(c: Canvas, x: number, y: number, w: number, h: number): void {
+// Hormuz art: a tanker under missile trails at sunset.
+function drawHormuz(c: Canvas, x: number, y: number, w: number, h: number): void {
   frame(c, x, y, w, h);
   const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
-  c.rect(ix, iy, iw, ih, SKY);
-  c.poly([[ix, iy + ih - 30], [ix + 44, iy + 34], [ix + 84, iy + ih - 30]], [150, 148, 140]);
-  c.poly([[ix + 60, iy + ih - 30], [ix + 116, iy + 18], [ix + iw, iy + ih - 30]], [120, 118, 110]);
-  c.poly([[ix + 44 - 12, iy + 34 + 22], [ix + 44, iy + 34], [ix + 44 + 12, iy + 34 + 22]], PAPER);
-  c.poly([[ix + 116 - 14, iy + 18 + 26], [ix + 116, iy + 18], [ix + 116 + 14, iy + 18 + 26]], PAPER);
-  // seismograph strip
-  const sy = iy + ih - 44;
-  c.rect(ix, sy, iw, 24, PAPER);
-  c.rect(ix, sy, iw, 2, INK);
-  c.rect(ix, sy + 22, iw, 2, INK);
-  let px = ix + 6, py = sy + 12;
-  const trace: [number, number][] = [
-    [26, 0], [14, 0], [10, -8], [8, 8], [10, -6], [8, 6], [12, 0],
-    [10, -10], [8, 10], [10, -8], [8, 8], [12, 0], [14, 0],
-  ];
-  for (const [dx, dy] of trace) {
-    const nx = px + dx, ny = py + dy;
-    c.line(px, py, nx, ny, RED, 2);
-    px = nx; py = ny;
+  c.rect(ix, iy, iw, ih - 46, [244, 214, 150]);
+  c.circle(ix + 30, iy + 18, 13, GOLD);
+  c.rect(ix, iy + ih - 46, iw, 46, TEAL);
+  c.rect(ix, iy + ih - 46, iw, 3, [64, 140, 140]);
+  // tanker silhouette
+  const ty = iy + ih - 62;
+  c.rect(ix + 30, ty, 150, 20, DARK);
+  c.rect(ix + 46, ty - 13, 28, 13, DARK);
+  c.rect(ix + 84, ty - 8, 8, 8, DARK);
+  c.rect(ix + 138, ty - 18, 6, 18, DARK);
+  c.line(ix + 180, ty - 18, ix + 180, ty - 28, RED, 2);
+  c.circle(ix + 180, ty - 30, 4, RED);
+  // missile trails arcing in toward the ship
+  c.line(ix + 300, iy + 6, ix + 152, iy + 30, RED, 2);
+  c.line(ix + 356, iy + 4, ix + 170, iy + 38, RED, 2);
+  c.circle(ix + 150, iy + 30, 3, RED);
+  c.circle(ix + 168, iy + 38, 3, RED);
+  // burst on the hull, where the strike lands
+  const bx = ix + 122, by = ty + 2;
+  for (let a = 0; a < 8; a++) {
+    const r = (a * Math.PI) / 4;
+    c.line(bx, by, Math.round(bx + 14 * Math.cos(r)), Math.round(by + 14 * Math.sin(r)), GOLD, 3);
   }
-  c.rect(ix, iy + ih - 20, iw, 20, INK);
-  c.text(ix + 8, iy + ih - 15, '6.9 QUAKE IN THE ANDES', 2, PAPER);
-}
-
-// Small globe for the masthead: circle with meridians and land blobs.
-function drawGlobe(c: Canvas, cx: number, cy: number, r: number): void {
-  c.ring(cx, cy, r, INK, 3);
-  c.circle(cx, cy, r - 2, SKY);
-  for (const k of [-0.55, 0, 0.55]) {
-    for (let a = -78; a <= 78; a += 3) {
-      const rad = (a * Math.PI) / 180;
-      const xx = cx + Math.round((r - 3) * Math.sin(rad) * Math.cos(k));
-      const yy = cy + Math.round((r - 3) * Math.sin(rad));
-      c.px(xx, yy, BLUE);
-    }
+  c.circle(bx, by, 6, RED);
+  for (let wx = ix + 8; wx < ix + iw - 12; wx += 22) {
+    c.line(wx, iy + ih - 32, wx + 10, iy + ih - 27, [120, 190, 190], 2);
   }
-  for (let a = 0; a < 360; a += 4) {
-    const rad = (a * Math.PI) / 180;
-    c.px(Math.round(cx + (r - 3) * Math.cos(rad) * 0.98), cy + Math.round((r - 3) * Math.sin(rad) * 0.32), BLUE);
-    c.px(Math.round(cx + (r - 3) * Math.cos(rad) * 0.98), cy - Math.round((r - 3) * Math.sin(rad) * 0.32), BLUE);
-  }
-  c.poly([[cx - 12, cy - 14], [cx + 2, cy - 16], [cx + 6, cy - 4], [cx - 4, cy + 2], [cx - 14, cy - 4]], TEAL);
-  c.poly([[cx + 8, cy + 4], [cx + 18, cy + 2], [cx + 16, cy + 14], [cx + 6, cy + 12]], TEAL);
-  c.poly([[cx - 16, cy + 10], [cx - 6, cy + 8], [cx - 8, cy + 18], [cx - 18, cy + 16]], GOLD);
+  caption(c, x, y, w, h, 'HORMUZ: TWO TANKERS ARE HIT');
 }
 
 // ---------------------------------------------------------------- the page
 const W = 1024, H = 1024;
 const M = 28; // outer margin
+const R = W - M; // right edge of the text block (996)
 
 function rule(c: Canvas, y: number, t = 2): void { c.hline(M, y, W - 2 * M, INK, t); }
-
-function kicker(c: Canvas, x: number, y: number, s: string, col: RGB = RED): void {
-  c.text(x, y, s, 2, col);
-}
-
-function headline(c: Canvas, x: number, y: number, w: number, lines: string[], scale: number, lh: number): number {
-  for (const ln of lines) { c.text(x, y, ln, scale, INK); y += lh; }
-  return y;
-}
-
-// Split a headline into as few lines as fit width w at the given scale.
-function wrapHead(c: Canvas, s: string, w: number, scale: number): string[] {
-  const words = s.split(' ');
-  const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    const test = line ? line + ' ' + word : word;
-    if (c.textWidth(test, scale) <= w || !line) line = test;
-    else { lines.push(line); line = word; }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
 
 function render(): Canvas {
   const c = new Canvas(W, H, PAPER);
@@ -425,129 +423,83 @@ function render(): Canvas {
   c.rect(14, 14, W - 28, H - 28, PAPER);
 
   // ---- top strip: issue line
-  c.text(M, 26, 'NO. 327  •  PRICE £2.50  •  SUNDAY EDITION', 2, GREY);
-  c.text(W - M, 26, 'LONDON  •  NEW YORK  •  SYDNEY', 2, GREY, 'r');
+  c.text(M, 24, 'NO. 327  •  PRICE £2.50  •  SUNDAY EDITION', 2, GREY);
+  c.text(R, 24, 'LONDON  •  NEW YORK  •  SYDNEY', 2, GREY, 'r');
 
   // ---- masthead
-  drawGlobe(c, 92, 96, 34);
-  c.text(512, 58, 'THE SUNDAY GLOBE', 8, INK, 'c');
-  rule(c, 132, 4);
-  c.text(512, 142, 'SUNDAY 22 NOVEMBER 2026', 3, RED, 'c');
-  c.text(M, 142, 'WORLD NEWS', 2, INK);
-  rule(c, 164, 2);
+  c.text(512, 44, 'THE SUNDAY GLOBE', 8, INK, 'c');
+  rule(c, 108, 4);
+  rule(c, 115, 1);
 
-  // ---- lead story: ICJ genocide verdict
-  let y = 178;
-  kicker(c, M, y, 'THE HAGUE  •  WORLD COURT');
-  c.text(W - M, y, 'LEAD STORY', 2, GREY, 'r');
-  y += 18;
-  y = headline(c, M, y, W - 2 * M, [
-    'COURT FINDS MYANMAR',
-    'GUILTY OF GENOCIDE',
-  ], 5, 40);
-  y += 4;
-  c.text(M, y, 'ROHINGYA HAIL THE VERDICT AS MYANMAR DISMISSES THE RULING', 2, BLUE);
-  y += 22;
-  // lead art left, standfirst + columns right
-  const artX = M, artY = y, artW = 470, artH = 160;
-  drawCourt(c, artX, artY, artW, artH);
-  const tx = artX + artW + 16, tw = W - M - tx;
-  let ty = artY + 2;
-  ty = c.para(tx, ty, tw, 'THE WORLD COURT RULED ON SUNDAY THAT MYANMAR COMMITTED GENOCIDE AGAINST THE ROHINGYA, ENDING YEARS OF HEARINGS AT THE HAGUE.', 2, INK, 16) + 6;
-  ty = c.para(tx, ty, tw, 'SURVIVORS IN THE CAMPS OF BANGLADESH WEPT AND CHEERED AS THE VERDICT WAS READ. MYANMAR REJECTED IT AS UNFAIR.', 2, INK, 16) + 6;
-  ty = c.para(tx, ty, tw, 'THE RULING IS THE FIRST TIME THE COURT HAS FOUND A STATE GUILTY OF GENOCIDE. FULL REPORT, PAGE 2.', 2, GREY, 16);
-  y = artY + artH + 12;
-  rule(c, y, 2);
-  y += 10;
+  // ---- date line: the day, named big and red
+  c.text(M, 132, 'WORLD NEWS', 2, INK);
+  c.text(512, 124, 'SUNDAY 22 NOVEMBER 2026', 4, RED, 'c');
+  c.text(R, 132, 'ONE PAGE', 2, INK, 'r');
+  rule(c, 162, 2);
 
-  // ---- three secondary stories
-  kicker(c, M, y, 'THE DAY IN THREE STORIES');
-  y += 18;
-  const colW = Math.floor((W - 2 * M - 2 * 16) / 3);
-  const cols: [string, string, string[], (c: Canvas, x: number, y: number, w: number, h: number) => void][] = [
-    ['EUROPE', 'MISSILE LANDS IN POLAND', [
-      'A RUSSIAN MISSILE CRASHED IN POLAND DURING DRILLS NEARBY, NATO CALLING IT A VIOLATION.',
-      'WARSAW CALLED IT A PROVOCATION. RUSSIA THEN POUNDED UKRAINE ANEW.',
-    ], drawMissile],
-    ['THE GULF', 'IRAN HITS US BASE', [
-      'IRAN STRUCK A US AIR BASE IN KUWAIT AND TARGETS IN BAHRAIN AS GULF ATTACKS WIDENED.',
-      'THREE TANKERS WERE HIT AT SEA. OIL PRICES FELL SHARPLY ON THE NEWS.',
-    ], drawGulf],
-    ['LATIN AMERICA', 'QUAKE SHAKES PERU', [
-      'A MAGNITUDE 6.9 EARTHQUAKE SHOOK THE ANDES OF PERU, WITH NO DEATHS REPORTED.',
-      'TREMORS WERE FELT ACROSS THE REGION. RESCUE TEAMS STOOD READY.',
-    ], drawQuake],
-  ];
-  const artH2 = 100;
-  let maxY = y;
-  cols.forEach(([kick, head, body, draw], i) => {
-    const cx = M + i * (colW + 16);
-    kicker(c, cx, y, kick);
-    let cy = y + 16;
-    cy = headline(c, cx, cy, colW, wrapHead(c, head, colW, 3), 3, 24);
-    cy += 4;
-    draw(c, cx, cy, colW, artH2);
-    cy += artH2 + 8;
-    for (const p of body) cy = c.para(cx, cy, colW, p, 2, INK, 17) + 4;
-    if (cy > maxY) maxY = cy;
-    if (i < 2) c.vline(cx + colW + 8, y, maxY - y + 10, LGREY, 1);
-  });
-  y = maxY + 6;
-  rule(c, y, 2);
-  y += 10;
+  // ---- lead story: COP31 collapses at Antalya
+  c.text(M, 176, 'CLIMATE SUMMIT  •  ANTALYA, TURKEY', 3, RED);
+  c.text(R, 176, 'LEAD STORY', 3, INK, 'r');
+  c.text(M, 206, 'COP31 TALKS', 8, INK);
+  c.text(M, 272, 'END IN COLLAPSE', 8, INK);
+  c.para(M, 338, W - 2 * M,
+    'NEARLY 200 NATIONS LEAVE TURKEY EMPTY-HANDED AFTER TWO DAYS OF OVERTIME, BEATEN BY THE FOSSIL-FUEL ROW.',
+    3, INK, 26);
+  // lead art left, body right
+  drawClimate(c, M, 402, 540, 176);
+  c.para(584, 408, R - 584,
+    'THE CLOSING DRAFT NEVER NAMED FOSSIL FUELS. THE EU AND AT-RISK NATIONS SAID NO, AND THE MONEY TALKS STALLED TOO.',
+    3, INK, 25);
+  rule(c, 590, 2);
 
-  // ---- briefs strip: more of the day, two columns
-  kicker(c, M, y, 'ALSO TODAY');
-  y += 18;
-  const bw = Math.floor((W - 2 * M - 24) / 2);
-  const briefsL = [
-    ['WASHINGTON', 'TRUMP VOWS 10% RATE CAP'],
-    ['RIYADH', 'HOUTHIS STRIKE SAUDI CAPITAL'],
-    ['FLORIDA', 'HISTORIC FLOODS HIT COAST'],
-    ['EUROPE', 'YOUTH PROTESTS SWEEP EUROPE'],
+  // ---- two secondary stories
+  const colW = 474, colB = 522;
+  // left: sea drones strike a Russian warship at Benghazi
+  c.text(M, 604, 'UKRAINE WAR  •  LIBYA', 3, RED);
+  c.text(M, 632, 'SEA DRONES HIT', 5, INK);
+  c.text(M, 674, 'RUSSIAN WARSHIP', 5, INK);
+  drawDrones(c, M, 719, colW, 100);
+  c.para(M, 829, colW,
+    'UKRAINIAN NAVAL DRONES HIT A WARSHIP IN LIBYA.', 3, INK, 25);
+  // right: tankers struck near Hormuz
+  c.text(colB, 604, 'THE GULF  •  HORMUZ', 3, RED);
+  c.text(colB, 632, 'TANKERS STRUCK', 5, INK);
+  c.text(colB, 674, 'NEAR HORMUZ', 5, INK);
+  drawHormuz(c, colB, 719, colW, 100);
+  c.para(colB, 829, colW,
+    'BAHRAIN BLAMES IRAN AS TWO ARE HURT AT SITRA.', 3, INK, 25);
+  c.vline(510, 604, 275, LGREY, 1);
+  rule(c, 891, 1);
+
+  // ---- briefs: the rest of the day in one lines
+  c.text(M, 903, 'ALSO TODAY', 3, RED);
+  const briefsL: [string, string][] = [
+    ['WARSAW', 'RUSSIAN MISSILES HIT POLAND'],
+    ['KYIV', 'RUSSIAN STRIKES KILL FIVE'],
+    ['MEXICO', 'CARTEL BOSS HELD; 11 DEAD'],
+    ['SEOUL', 'MINISTER QUITS IN AI EXAM ROW'],
   ];
-  const briefsR = [
-    ['SEOUL', 'LEE: SPEED DECIDES AI RACE'],
-    ['NEW DELHI', 'MODI OPENS NITISH SETU'],
-    ['CRICKET', 'CUMMINS KEEPS CAPTAINCY'],
-    ['OTTAWA', 'PENTAGON LIMITS CANADA TIES'],
+  const briefsR: [string, string][] = [
+    ['LONDON', 'UK AND EU SIGN TRADE DEALS'],
+    ['PERU', '1 DEAD, 850 DISPLACED IN QUAKE'],
+    ['GENEVA', 'PLEDGE ON KILLER-ROBOT RULES'],
+    ['MYANMAR', 'ROHINGYA HAIL THE VERDICT'],
   ];
-  let by = y;
+  let by = 934;
   for (const [kick, head] of briefsL) {
     c.text(M, by, '•', 2, RED);
     c.text(M + 14, by, kick + '  ', 2, RED);
     c.text(M + 14 + c.textWidth(kick + '  ', 2), by, head, 2, INK);
-    by += 15;
+    by += 17;
   }
-  by = y;
+  by = 934;
   for (const [kick, head] of briefsR) {
-    const rx = M + bw + 24;
-    c.text(rx, by, '•', 2, RED);
-    c.text(rx + 14, by, kick + '  ', 2, RED);
-    c.text(rx + 14 + c.textWidth(kick + '  ', 2), by, head, 2, INK);
-    by += 15;
+    c.text(colB, by, '•', 2, RED);
+    c.text(colB + 14, by, kick + '  ', 2, RED);
+    c.text(colB + 14 + c.textWidth(kick + '  ', 2), by, head, 2, INK);
+    by += 17;
   }
-  y += 4 * 15 + 8;
-  rule(c, y, 2);
-  y += 10;
-
-  // ---- bottom row: weather box + index
-  const wx = M, wy = y, ww = 300, wh = 66;
-  c.rect(wx, wy, ww, wh, INK);
-  c.rect(wx + 2, wy + 2, ww - 4, wh - 4, CREAM);
-  c.text(wx + 10, wy + 4, 'WEATHER', 2, RED);
-  c.text(wx + 10, wy + 18, 'LONDON 9C RAIN', 2, INK);
-  c.text(wx + 10, wy + 33, 'NEW YORK 4C CLEAR', 2, INK);
-  c.text(wx + 10, wy + 48, 'SYDNEY 26C SUNNY', 2, INK);
-  const ix2 = wx + ww + 20;
-  c.text(ix2, wy + 4, 'INSIDE', 2, RED);
-  c.text(ix2, wy + 18, 'THE VERDICT, IN FULL — P2', 2, INK);
-  c.text(ix2, wy + 33, 'POLAND: WHAT NATO SAID — P3', 2, INK);
-  c.text(ix2, wy + 48, 'THE GULF CRISIS — P4', 2, INK);
-  y = wy + wh + 6;
-  rule(c, y, 2);
-  y += 4;
-  c.text(512, y, 'THE SUNDAY GLOBE  •  SUNDAY 22 NOVEMBER 2026  •  THE DAY IN ONE PAGE', 2, GREY, 'c');
+  rule(c, 1006, 2);
 
   return c;
 }
